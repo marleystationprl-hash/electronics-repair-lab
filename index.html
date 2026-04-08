@@ -639,269 +639,123 @@ footer {
 
 <script>
   (function() {
-    // ----- DATE PICKER SETUP -----
+    // ==================== CONFIGURATION ====================
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxgEyJ8WKBBqDYR4Hspd2njEzS1Ks7gtlN0Ew3_0ge-_mSIUgcJ_AmUCEU3zE1QXQ/exec'; // e.g., 'https://script.google.com/macros/s/.../exec'
+    // ======================================================
+
     const today = new Date().toISOString().split('T')[0];
     const prefDateInput = document.getElementById('prefDate');
-    if (prefDateInput) {
-      prefDateInput.setAttribute('min', today);
-      prefDateInput.value = today;
-    }
+    if (prefDateInput) { prefDateInput.setAttribute('min', today); prefDateInput.value = today; }
 
-    // ----- MODAL FUNCTIONALITY -----
+    // Modal
     const modal = document.getElementById('bookingModal');
     const closeBtn = document.getElementById('closeModalBtn');
     const navBookBtn = document.getElementById('navBookBtn');
     const heroBookBtn = document.getElementById('heroBookBtn');
-    const modalTriggers = document.querySelectorAll('.modal-trigger');
-    
-    function openModal(e) {
-      if (e) e.preventDefault();
-      modal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-    }
-    function closeModal() {
-      modal.style.display = 'none';
-      document.body.style.overflow = '';
-    }
-    
+    function openModal(e) { e?.preventDefault(); modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+    function closeModal() { modal.style.display = 'none'; document.body.style.overflow = ''; }
     navBookBtn.addEventListener('click', openModal);
     heroBookBtn.addEventListener('click', openModal);
-    modalTriggers.forEach(btn => btn.addEventListener('click', openModal));
     closeBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
-    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modal.style.display === 'flex') closeModal(); });
 
-    // ----- SERVICES SLIDESHOW -----
+    // Services slideshow
     const slides = document.querySelectorAll('.slide');
     const slidesContainer = document.getElementById('carouselSlides');
     if (slidesContainer) {
-      let currentIndex = 0;
-      function updateCarousel() { 
-        slidesContainer.style.transform = `translateX(-${currentIndex * 100}%)`; 
-        document.querySelectorAll('#carouselDots .dot').forEach((dot, i) => dot.classList.toggle('active', i === currentIndex));
-      }
-      document.getElementById('nextBtn').addEventListener('click', () => { currentIndex = (currentIndex + 1) % slides.length; updateCarousel(); });
-      document.getElementById('prevBtn').addEventListener('click', () => { currentIndex = (currentIndex - 1 + slides.length) % slides.length; updateCarousel(); });
-      const dotsContainer = document.getElementById('carouselDots');
-      slides.forEach((_, i) => {
-        const dot = document.createElement('button');
-        dot.classList.add('dot');
-        if (i === 0) dot.classList.add('active');
-        dot.addEventListener('click', () => { currentIndex = i; updateCarousel(); });
-        dotsContainer.appendChild(dot);
-      });
-      setInterval(() => { currentIndex = (currentIndex + 1) % slides.length; updateCarousel(); }, 5000);
+      let idx = 0;
+      function update() { slidesContainer.style.transform = `translateX(-${idx * 100}%)`; document.querySelectorAll('#carouselDots .dot').forEach((d,i) => d.classList.toggle('active', i===idx)); }
+      document.getElementById('nextBtn').addEventListener('click', () => { idx = (idx+1) % slides.length; update(); });
+      document.getElementById('prevBtn').addEventListener('click', () => { idx = (idx-1+slides.length) % slides.length; update(); });
+      const dots = document.getElementById('carouselDots');
+      slides.forEach((_,i) => { const d=document.createElement('button'); d.className='dot'; if(i===0) d.classList.add('active'); d.addEventListener('click',()=>{ idx=i; update(); }); dots.appendChild(d); });
+      setInterval(() => { idx = (idx+1) % slides.length; update(); }, 5000);
     }
 
-    // ----- DYNAMIC LOCATIONS (with click-to-call & directions) -----
+    // Locations (fetch from Apps Script)
     function loadLocations() {
-      google.script.run.withSuccessHandler(function(locations) {
-        const grid = document.getElementById('locationsGrid');
-        const locationSelect = document.getElementById('location');
-        if (!locations || locations.length === 0) {
-          grid.innerHTML = '<p>No locations available.</p>';
-          return;
-        }
-        
-        if (locationSelect) {
-          locationSelect.innerHTML = '<option value="">-- Select a store --</option>';
-        }
-        
-        let cardsHtml = '';
-        locations.forEach((loc, index) => {
-          const mapId = `map-loc-${index}`;
-          cardsHtml += `
-            <div class="location-card">
-              <div id="${mapId}" class="leaflet-map-container"></div>
-              <div class="location-icon"><i class="fas fa-building"></i></div>
-              <h3>${loc.name}</h3>
-              <div class="location-detail"><i class="fas fa-map-pin"></i>${loc.address}</div>
-              <div class="location-detail">
-                <i class="fas fa-phone-alt"></i>
-                <a href="tel:${loc.phone.replace(/\D/g,'')}" class="phone-link">${loc.phone}</a>
-              </div>
-              <div class="location-hours">${loc.hours}</div>
-              <div class="location-actions">
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="btn-small">
-                  <i class="fas fa-directions"></i> Directions
-                </a>
-                <a href="tel:${loc.phone.replace(/\D/g,'')}" class="btn-small" style="background: var(--accent); color: #0f172a;">
-                  <i class="fas fa-phone"></i> Call
-                </a>
-              </div>
-            </div>
-          `;
-          
-          if (locationSelect) {
-            const option = document.createElement('option');
-            option.value = loc.name;
-            option.textContent = `🏢 ${loc.name}`;
-            locationSelect.appendChild(option);
-          }
-        });
-        grid.innerHTML = cardsHtml;
-        
-        // Initialize maps
-        locations.forEach((loc, index) => {
-          const mapId = `map-loc-${index}`;
-          const mapElement = document.getElementById(mapId);
-          if (mapElement) {
-            const map = L.map(mapId).setView([loc.lat, loc.lng], loc.zoom || 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-            L.marker([loc.lat, loc.lng]).addTo(map)
-              .bindPopup(`<b>${loc.name}</b><br>${loc.address}`)
-              .openPopup();
-          }
-        });
-      }).getLocations();
+      fetch(SCRIPT_URL + '?action=getLocations')
+        .then(r => r.json())
+        .then(locs => {
+          const grid = document.getElementById('locationsGrid');
+          const sel = document.getElementById('location');
+          if (!locs || locs.length === 0) { grid.innerHTML = '<p>No locations available.</p>'; return; }
+          sel.innerHTML = '<option value="">-- Select a store --</option>';
+          let html = '';
+          locs.forEach((loc,i) => {
+            const mapId = `map-loc-${i}`;
+            html += `<div class="location-card"><div id="${mapId}" class="leaflet-map-container"></div><div class="location-icon"><i class="fas fa-building"></i></div><h3>${loc.name}</h3><div class="location-detail"><i class="fas fa-map-pin"></i>${loc.address}</div><div class="location-detail"><i class="fas fa-phone-alt"></i><a href="tel:${loc.phone.replace(/\D/g,'')}" class="phone-link">${loc.phone}</a></div><div class="location-hours">${loc.hours}</div><div class="location-actions"><a href="https://www.google.com/maps/dir/?api=1&destination=${loc.lat},${loc.lng}" target="_blank" class="btn-small"><i class="fas fa-directions"></i> Directions</a><a href="tel:${loc.phone.replace(/\D/g,'')}" class="btn-small" style="background:var(--accent);color:#0f172a;"><i class="fas fa-phone"></i> Call</a></div></div>`;
+            sel.add(new Option(`🏢 ${loc.name}`, loc.name));
+          });
+          grid.innerHTML = html;
+          locs.forEach((loc,i) => {
+            const el = document.getElementById(`map-loc-${i}`);
+            if (el) { const m = L.map(el).setView([loc.lat, loc.lng], loc.zoom||13); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'&copy; OpenStreetMap'}).addTo(m); L.marker([loc.lat, loc.lng]).addTo(m).bindPopup(`<b>${loc.name}</b><br>${loc.address}`).openPopup(); }
+          });
+        })
+        .catch(err => console.error('Locations error:', err));
     }
 
-
-    // ----- DYNAMIC NEWS & DEALS (image only) -----
-    let newsCarouselInterval;
+    // News carousel (fetch from Apps Script)
+    let newsInterval;
     function loadNews() {
-      google.script.run.withSuccessHandler(function(newsItems) {
-        const slidesContainer = document.getElementById('newsCarouselSlides');
-        const dotsContainer = document.getElementById('newsCarouselDots');
-        if (!newsItems || newsItems.length === 0) {
-          slidesContainer.innerHTML = '<div class="news-slide"><img src="https://via.placeholder.com/1200x450?text=No+Images" class="news-slide-img" alt="No images"></div>';
-          return;
-        }
-        
-        let slidesHtml = '';
-        newsItems.forEach((item) => {
-          slidesHtml += `
-            <div class="news-slide">
-              <img src="${item.imageUrl}" alt="Deal or News" class="news-slide-img">
-            </div>
-          `;
-        });
-        slidesContainer.innerHTML = slidesHtml;
-        initNewsCarousel();
-      }).getNews();
+      fetch(SCRIPT_URL + '?action=getNews')
+        .then(r => r.json())
+        .then(items => {
+          const cont = document.getElementById('newsCarouselSlides');
+          if (!items || items.length === 0) { cont.innerHTML = '<div class="news-slide"><img src="https://via.placeholder.com/1200x450?text=No+Images" class="news-slide-img" alt="No images"></div>'; return; }
+          cont.innerHTML = items.map(it => `<div class="news-slide"><img src="${it.imageUrl}" class="news-slide-img" alt=""></div>`).join('');
+          initNewsCarousel();
+        })
+        .catch(err => console.error('News error:', err));
     }
-
     function initNewsCarousel() {
       const slides = document.querySelectorAll('.news-slide');
-      const slidesContainer = document.getElementById('newsCarouselSlides');
-      const dotsContainer = document.getElementById('newsCarouselDots');
+      const cont = document.getElementById('newsCarouselSlides');
+      const dots = document.getElementById('newsCarouselDots');
       if (!slides.length) return;
-      
-      let currentIndex = 0;
-      function updateCarousel() {
-        slidesContainer.style.transform = `translateX(-${currentIndex * 100}%)`;
-        document.querySelectorAll('#newsCarouselDots .dot').forEach((dot, i) => {
-          dot.classList.toggle('active', i === currentIndex);
-        });
-      }
-      
-      dotsContainer.innerHTML = '';
-      if (newsCarouselInterval) clearInterval(newsCarouselInterval);
-      
-      slides.forEach((_, i) => {
-        const dot = document.createElement('button');
-        dot.classList.add('dot');
-        if (i === 0) dot.classList.add('active');
-        dot.addEventListener('click', () => { currentIndex = i; updateCarousel(); });
-        dotsContainer.appendChild(dot);
-      });
-      
-      document.getElementById('newsNextBtn').onclick = () => {
-        currentIndex = (currentIndex + 1) % slides.length;
-        updateCarousel();
-      };
-      document.getElementById('newsPrevBtn').onclick = () => {
-        currentIndex = (currentIndex - 1 + slides.length) % slides.length;
-        updateCarousel();
-      };
-      
-      newsCarouselInterval = setInterval(() => {
-        currentIndex = (currentIndex + 1) % slides.length;
-        updateCarousel();
-      }, 6000);
+      let idx = 0;
+      function update() { cont.style.transform = `translateX(-${idx * 100}%)`; document.querySelectorAll('#newsCarouselDots .dot').forEach((d,i) => d.classList.toggle('active', i===idx)); }
+      dots.innerHTML = '';
+      if (newsInterval) clearInterval(newsInterval);
+      slides.forEach((_,i) => { const d=document.createElement('button'); d.className='dot'; if(i===0) d.classList.add('active'); d.addEventListener('click',()=>{ idx=i; update(); }); dots.appendChild(d); });
+      document.getElementById('newsNextBtn').onclick = () => { idx = (idx+1) % slides.length; update(); };
+      document.getElementById('newsPrevBtn').onclick = () => { idx = (idx-1+slides.length) % slides.length; update(); };
+      newsInterval = setInterval(() => { idx = (idx+1) % slides.length; update(); }, 6000);
     }
 
-    // ----- BOOKING FORM HANDLING -----
-    window.handleFormSubmit = function(event) {
-      event.preventDefault();
-      const form = event.target;
-      const statusDiv = document.getElementById('status');
-      const submitBtn = document.getElementById('submitBtn');
-      
-      const formData = {
-        name: form.name.value.trim(),
-        email: form.email.value.trim(),
-        location: form.location.value,
-        device: form.device.value,
-        model: form.model.value.trim() || 'Not specified',
-        prefDate: form.prefDate.value,
-        timeSlot: form.timeSlot.value,
-        issue: form.issue.value.trim()
+    // Booking submit (POST to Apps Script)
+    window.handleFormSubmit = function(e) {
+      e.preventDefault();
+      const f = e.target, stat = document.getElementById('status'), btn = document.getElementById('submitBtn');
+      const data = {
+        name: f.name.value.trim(), email: f.email.value.trim(), location: f.location.value,
+        device: f.device.value, model: f.model.value.trim() || 'Not specified',
+        prefDate: f.prefDate.value, timeSlot: f.timeSlot.value, issue: f.issue.value.trim()
       };
-
-      if (!/^\S+@\S+\.\S+$/.test(formData.email)) {
-        statusDiv.innerHTML = '<span style="color:#dc2626;"><i class="fas fa-exclamation-circle"></i> Please enter a valid email address.</span>';
-        return false;
-      }
-
-      const originalBtnContent = submitBtn.innerHTML;
-      submitBtn.innerHTML = '<span class="loading-spinner"></span> Sending...';
-      submitBtn.disabled = true;
-      statusDiv.innerHTML = '';
-
-      google.script.run
-        .withSuccessHandler(function(response) {
-          if (response.result === 'success') {
-            statusDiv.innerHTML = '<i class="fas fa-check-circle" style="color:#10b981;"></i> Booking submitted! We will contact you shortly.';
-            form.reset();
-            if (prefDateInput) prefDateInput.value = today;
-            // Auto-close modal after 2 seconds
-            setTimeout(() => {
-              closeModal();
-              statusDiv.innerHTML = '';
-            }, 2000);
-          } else {
-            statusDiv.innerHTML = '<span style="color:#dc2626;">Error: ' + response.message + '</span>';
-          }
-          submitBtn.innerHTML = originalBtnContent;
-          submitBtn.disabled = false;
-        })
-        .withFailureHandler(function(error) {
-          statusDiv.innerHTML = '<span style="color:#dc2626;">Submission failed. Please try again.</span>';
-          console.error(error);
-          submitBtn.innerHTML = originalBtnContent;
-          submitBtn.disabled = false;
-        })
-        .processBooking(formData);
-
+      if (!/^\S+@\S+\.\S+$/.test(data.email)) { stat.innerHTML = '<span style="color:#dc2626;">Valid email required.</span>'; return false; }
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<span class="loading-spinner"></span> Sending...'; btn.disabled = true; stat.innerHTML = '';
+      
+      fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      .then(r => r.json())
+      .then(r => {
+        if (r.result==='success') { stat.innerHTML = '<i class="fas fa-check-circle" style="color:#10b981;"></i> Booking submitted!'; f.reset(); prefDateInput.value = today; setTimeout(() => { closeModal(); stat.innerHTML = ''; }, 2000); }
+        else stat.innerHTML = `<span style="color:#dc2626;">Error: ${r.message}</span>`;
+        btn.innerHTML = orig; btn.disabled = false;
+      })
+      .catch(err => { stat.innerHTML = '<span style="color:#dc2626;">Submission failed.</span>'; console.error(err); btn.innerHTML = orig; btn.disabled = false; });
       return false;
     };
 
-    // ----- SMOOTH SCROLL -----
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function(e) {
-        const href = this.getAttribute('href');
-        if (href === "#" || href === "") return;
-        const target = document.querySelector(href);
-        if (target) {
-          e.preventDefault();
-          target.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
-    });
-
-    // ----- INITIALIZE DYNAMIC CONTENT -----
-    document.addEventListener('DOMContentLoaded', function() {
-      loadLocations();
-      loadNews();
-    });
-
+    document.querySelectorAll('a[href^="#"]').forEach(a => a.addEventListener('click', e => { const t = document.querySelector(a.getAttribute('href')); if(t) { e.preventDefault(); t.scrollIntoView({behavior:'smooth'}); } }));
+    document.addEventListener('DOMContentLoaded', () => { loadLocations(); loadNews(); });
   })();
 </script>
 </body>
